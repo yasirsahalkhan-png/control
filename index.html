@@ -218,8 +218,8 @@
 
   /* modal */
   .overlay{
-    position:fixed; inset:0; background:rgba(11,37,69,.45);
-    display:none; align-items:center; justify-content:center; padding:20px; z-index:50;
+    position:fixed; top:0; right:0; bottom:0; left:0; background:rgba(11,37,69,.45);
+    display:none; align-items:center; justify-content:center; padding:20px; z-index:9999;
   }
   .overlay.open{display:flex;}
   .modal{
@@ -596,4 +596,4 @@ function render(){
       <td>
         <span class="badge ${status}"><span class="dot"></span>${statusLabel}</span>
         <div class="decay"><div class="decay-fill" style="width:${pct}%; background:${fillColor};"></div></div>
-        <div class="decay-label">${daysLabe
+        <div cla
