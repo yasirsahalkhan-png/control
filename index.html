@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MMC Pathology — QC Control Register</title>
+<style>
+  :root{
+    --navy:#0B2545;
+    --navy-2:#123468;
+    --gold:#C9A227;
+    --gold-soft:#E8D48A;
+    --bg:#F5F6F8;
+    --card:#FFFFFF;
+    --line:#E2E5EA;
+    --ink:#1B2430;
+    --ink-soft:#5B6472;
+    --ok:#1E7B4D;
+    --ok-bg:#E7F5EC;
+    --warn:#B4790E;
+    --warn-bg:#FCF1DC;
+    --bad:#B3261E;
+    --bad-bg:#FBE7E5;
+    --mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+    --serif: "Source Serif 4", Georgia, serif;
+    --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:var(--sans);
+    background:var(--bg);
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+  }
+  header{
+    background:linear-gradient(135deg,var(--navy) 0%,var(--navy-2) 100%);
+    color:#fff;
+    padding:28px clamp(16px,4vw,48px);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:16px;
+    border-bottom:4px solid var(--gold);
+  }
+  .brand{display:flex; align-items:center; gap:14px;}
+  .brand-mark{
+    width:46px;height:46px;border-radius:10px;
+    background:var(--gold);
+    color:var(--navy);
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--serif); font-weight:700; font-size:20px;
+    flex:none;
+  }
+  .brand h1{
+    font-family:var(--serif);
+    font-size:22px;
+    margin:0;
+    letter-spacing:.2px;
+  }
+  .brand p{
+    margin:2px 0 0;
+    font-size:12.5px;
+    color:var(--gold-soft);
+    letter-spacing:.4px;
+    text-transform:uppercase;
+  }
+  .header-clock{
+    text-align:right;
+    font-family:var(--mono);
+    font-size:12.5px;
+    color:#D7DEEC;
+  }
+
+  main{
+    max-width:1320px;
+    margin:0 auto;
+    padding:24px clamp(16px,4vw,48px) 60px;
+  }
+
+  /* summary cards */
+  .summary{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+    gap:14px;
+    margin-bottom:22px;
+  }
+  .stat{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:16px 18px;
+    position:relative;
+    overflow:hidden;
+  }
+  .stat::before{
+    content:"";
+    position:absolute; left:0; top:0; bottom:0; width:4px;
+    background:var(--stat-color,var(--navy));
+  }
+  .stat .n{font-family:var(--serif); font-size:30px; font-weight:700; line-height:1;}
+  .stat .l{font-size:12px; color:var(--ink-soft); margin-top:6px; text-transform:uppercase; letter-spacing:.5px;}
+  .stat.total{--stat-color:var(--navy);}
+  .stat.valid{--stat-color:var(--ok);}
+  .stat.soon{--stat-color:var(--warn);}
+  .stat.expired{--stat-color:var(--bad);}
+
+  /* toolbar */
+  .toolbar{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    align-items:center;
+    margin-bottom:16px;
+    justify-content:space-between;
+  }
+  .toolbar .left, .toolbar .right{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+  input, select{
+    font-family:var(--sans);
+    font-size:13.5px;
+    padding:9px 12px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    background:#fff;
+    color:var(--ink);
+  }
+  input:focus, select:focus{outline:2px solid var(--navy); outline-offset:1px;}
+  #search{min-width:220px;}
+  button{
+    font-family:var(--sans);
+    font-size:13.5px;
+    font-weight:600;
+    padding:9px 16px;
+    border-radius:8px;
+    border:1px solid transparent;
+    cursor:pointer;
+    transition:transform .06s ease;
+  }
+  button:active{transform:translateY(1px);}
+  .btn-primary{background:var(--navy); color:#fff;}
+  .btn-primary:hover{background:var(--navy-2);}
+  .btn-gold{background:var(--gold); color:var(--navy);}
+  .btn-gold:hover{background:#B8931F;}
+  .btn-ghost{background:#fff; border:1px solid var(--line); color:var(--ink);}
+  .btn-ghost:hover{border-color:var(--navy);}
+  .btn-danger{background:var(--bad-bg); color:var(--bad); border:1px solid #F1C6C2;}
+
+  /* table (built with divs, not <table>, so browser print pagination works reliably) */
+  .table-wrap{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:14px;
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+  }
+  .qc-table{min-width:1080px; font-size:13.5px;}
+  .col-test{flex:0 0 240px;}
+  .col-type{flex:0 0 92px;}
+  .col-level{flex:0 0 130px;}
+  .col-lot{flex:0 0 130px;}
+  .col-analyzer{flex:0 0 170px;}
+  .col-expiry{flex:0 0 110px;}
+  .col-status{flex:0 0 170px;}
+  .col-actions{flex:0 0 140px;}
+
+  .qc-head{
+    display:flex;
+    background:#F0F2F6;
+    border-bottom:1px solid var(--line);
+  }
+  .qc-head > div{
+    padding:12px 14px;
+    font-size:11.5px;
+    text-transform:uppercase;
+    letter-spacing:.5px;
+    color:var(--ink-soft);
+    white-space:nowrap;
+    cursor:pointer;
+    user-select:none;
+  }
+  .qc-head > div:hover{color:var(--navy);}
+  .qc-head > div.sorted::after{content:" ▾"; color:var(--gold);}
+
+  .qc-row{
+    display:flex;
+    border-bottom:1px solid var(--line);
+  }
+  .qc-row:last-child{border-bottom:none;}
+  .qc-row:hover{background:#FAFBFD;}
+  .qc-row > div{padding:12px 14px; display:flex; align-items:center;}
+  .qc-row .mono{font-family:var(--mono); font-size:12.5px; color:var(--ink);}
+  .qc-row .test-name{font-weight:600; display:flex; flex-direction:column; align-items:flex-start; justify-content:center;}
+  .qc-row .section-tag{
+    font-size:11px; color:var(--ink-soft); margin-top:2px; font-weight:400;
+  }
+  .qc-row .status-cell{flex-direction:column; align-items:flex-start; justify-content:center;}
+
+  .type-tag{
+    display:inline-block; padding:3px 9px; border-radius:6px;
+    font-size:11px; font-weight:700; letter-spacing:.3px; text-transform:uppercase;
+  }
+  .type-tag.Control{background:#EAF1FB; color:var(--navy);}
+  .type-tag.Calibrator{background:#F4EBD8; color:#8A6A0E;}
+
+  .badge{
+    display:inline-flex; align-items:center; gap:6px;
+    padding:4px 10px; border-radius:999px;
+    font-size:11.5px; font-weight:700; letter-spacing:.3px; text-transform:uppercase;
+  }
+  .badge.valid{background:var(--ok-bg); color:var(--ok);}
+  .badge.soon{background:var(--warn-bg); color:var(--warn);}
+  .badge.expired{background:var(--bad-bg); color:var(--bad);}
+  .badge .dot{width:6px;height:6px;border-radius:50%; background:currentColor;}
+
+  /* shelf-life decay bar — signature element */
+  .decay{
+    width:100px;
+    height:6px;
+    border-radius:4px;
+    background:#EAECF1;
+    overflow:hidden;
+    position:relative;
+  }
+  .decay-fill{height:100%; border-radius:4px;}
+  .decay-label{font-size:11px; color:var(--ink-soft); margin-top:4px; font-family:var(--mono);}
+
+  .row-actions{display:flex; gap:6px; white-space:nowrap;}
+  .icon-btn{
+    background:#F5F6F8; border:1px solid var(--line);
+    padding:6px 10px; border-radius:7px; font-size:12px; font-weight:600; color:var(--ink-soft);
+  }
+  .icon-btn:hover{border-color:var(--navy); color:var(--navy);}
+  .icon-btn.danger:hover{border-color:var(--bad); color:var(--bad);}
+
+  .empty{
+    padding:60px 20px; text-align:center; color:var(--ink-soft);
+  }
+  .empty h3{font-family:var(--serif); color:var(--ink); margin-bottom:6px;}
+
+  /* modal */
+  .overlay{
+    position:fixed; top:0; right:0; bottom:0; left:0; background:rgba(11,37,69,.45);
+    display:none; align-items:center; justify-content:center; padding:20px; z-index:9999;
+  }
+  .overlay.open{display:flex;}
+  .modal{
+    background:#fff; border-radius:14px; width:100%; max-width:520px;
+    padding:26px 28px 24px; box-shadow:0 20px 60px rgba(11,37,69,.3);
+    max-height:90vh; overflow-y:auto;
+  }
+  .modal h2{font-family:var(--serif); margin:0 0 4px; font-size:20px; color:var(--navy);}
+  .modal .sub{font-size:12.5px; color:var(--ink-soft); margin-bottom:18px;}
+  .field{margin-bottom:14px;}
+  .field label{display:block; font-size:12px; font-weight:600; margin-bottom:5px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.3px;}
+  .field input, .field select{width:100%;}
+  .field-row{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+  .modal-actions{display:flex; justify-content:flex-end; gap:10px; margin-top:20px;}
+
+  footer{
+    text-align:center; padding:26px; font-size:12px; color:var(--ink-soft);
+  }
+
+  @media print{
+    @page{ size: A4 landscape; margin: 8mm; }
+    *{
+      -webkit-print-color-adjust:exact !important;
+      print-color-adjust:exact !important;
+      color-adjust:exact !important;
+    }
+    header .header-clock, .toolbar, .row-actions, footer{display:none !important;}
+    header{
+      background:var(--navy) !important;
+      padding:8px 14px !important;
+    }
+    .brand-mark{width:26px !important; height:26px !important; font-size:12px !important; border-radius:6px !important;}
+    .brand h1{font-size:14px !important;}
+    .brand p{font-size:8px !important;}
+    body{background:#fff;}
+    main{max-width:none; padding:0 4px 10px;}
+
+    .summary{
+      display:flex !important;
+      gap:8px; margin-bottom:8px;
+    }
+    .stat{padding:5px 10px; border-radius:6px;}
+    .stat .n{font-size:15px;}
+    .stat .l{font-size:7.5px; margin-top:1px;}
+    .stat::before{width:3px;}
+
+    .table-wrap{
+      border:none; border-radius:0;
+      overflow:visible !important;
+    }
+    .qc-table{min-width:0; width:100%; font-size:9.5px;}
+    .qc-head{position:static;}
+    .qc-head > div{padding:4px 8px; font-size:8px;}
+    .qc-row > div{padding:3px 8px;}
+    .qc-row .section-tag{font-size:8px; margin-top:0;}
+    .qc-row{border-bottom:1px solid #E2E5EA;}
+
+    .type-tag{padding:1px 6px; font-size:8px; border-radius:4px;}
+
+    .badge{padding:2px 7px; font-size:8.5px; gap:4px;}
+    .badge .dot{width:4px; height:4px;}
+
+    /* simplified status for print: hide the decorative bar, keep the day-count label inline */
+    .decay{display:none;}
+    .decay-label{margin-top:1px; font-size:8px;}
+  }
+  @media (max-width:640px){
+    .field-row{grid-template-columns:1fr;}
+    .toolbar{flex-direction:column; align-items:stretch;}
+    .toolbar .left, .toolbar .right{justify-content:space-between;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-mark">QC</div>
+    <div>
+      <h1>Mardan Medical Complex</h1>
+      <p>Pathology Department — Quality Control Register</p>
+    </div>
+  </div>
+  <div class="header-clock" id="clock"></div>
+</header>
+
+<main>
+
+  <div class="summary">
+    <div class="stat total"><div class="n" id="statTotal">0</div><div class="l">Tests Tracked</div></div>
+    <div class="stat valid"><div class="n" id="statValid">0</div><div class="l">Valid Controls</div></div>
+    <div class="stat soon"><div class="n" id="statSoon">0</div><div class="l">Expiring ≤ 30 Days</div></div>
+    <div class="stat expired"><div class="n" id="statExpired">0</div><div class="l">Expired</div></div>
+  </div>
+
+  <div class="toolbar">
+    <div class="left">
+      <input type="text" id="search" placeholder="Search test, lot number, analyzer…">
+      <select id="filterSection">
+        <option value="">All Sections</option>
+        <option>Clinical Chemistry</option>
+        <option>Hematology</option>
+        <option>Special Hematology</option>
+        <option>Serology / Immunology</option>
+        <option>Microbiology</option>
+      </select>
+      <select id="filterType">
+        <option value="">Control &amp; Calibrator</option>
+        <option value="Control">Control Only</option>
+        <option value="Calibrator">Calibrator Only</option>
+      </select>
+      <select id="filterStatus">
+        <option value="">All Status</option>
+        <option value="valid">Valid</option>
+        <option value="soon">Expiring Soon</option>
+        <option value="expired">Expired</option>
+      </select>
+    </div>
+    <div class="right">
+      <button class="btn-ghost" onclick="exportJSON()">Export Backup</button>
+      <button class="btn-ghost" onclick="document.getElementById('importFile').click()">Import Backup</button>
+      <input type="file" id="importFile" accept=".json" style="display:none" onchange="importJSON(event)">
+      <button class="btn-ghost" onclick="window.print()">Print</button>
+      <button class="btn-primary" onclick="openModal()">+ Add Record</button>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <div class="qc-table" id="qcTable">
+      <div class="qc-head">
+        <div class="col-test" data-key="testName">Test</div>
+        <div class="col-type" data-key="type">Type</div>
+        <div class="col-level" data-key="controlLevel">Level / ID</div>
+        <div class="col-lot" data-key="lotNumber">Lot Number</div>
+        <div class="col-analyzer" data-key="analyzer">Analyzer</div>
+        <div class="col-expiry" data-key="expiryDate">Expiry Date</div>
+        <div class="col-status" data-key="_status">Status &amp; Shelf Life</div>
+        <div class="col-actions"></div>
+      </div>
+      <div id="tbody"></div>
+    </div>
+    <div class="empty" id="emptyState" style="display:none;">
+      <h3>No records recorded yet</h3>
+      <p>Add your first control or calibrator lot to start tracking expiry status.</p>
+    </div>
+  </div>
+
+</main>
+
+<footer>MMC Pathology QC Register — data is stored locally in this browser only. Export a backup regularly.</footer>
+
+<!-- Modal -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h2 id="modalTitle">Add QC Control</h2>
+    <div class="sub">Record the control lot in use for a specific test.</div>
+
+    <div class="field">
+      <label>Test Name</label>
+      <input type="text" id="f_testName" placeholder="e.g., Fasting Blood Glucose">
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>Type</label>
+        <select id="f_type">
+          <option>Control</option>
+          <option>Calibrator</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Section</label>
+        <select id="f_section">
+          <option>Clinical Chemistry</option>
+          <option>Hematology</option>
+          <option>Special Hematology</option>
+          <option>Serology / Immunology</option>
+          <option>Microbiology</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field" id="f_controlLevelWrap">
+      <label>Control Level</label>
+      <input type="text" id="f_controlLevel" placeholder="e.g., Level 1 / Normal">
+    </div>
+
+    <div class="field">
+      <label>Analyzer / Instrument</label>
+      <input type="text" id="f_analyzer" placeholder="e.g., Abbott ARCHITECT i1000SR">
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>Lot Number</label>
+        <input type="text" id="f_lotNumber" placeholder="e.g., 71834LK00">
+      </div>
+      <div class="field">
+        <label>Expiry Date</label>
+        <input type="date" id="f_expiryDate">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Date Opened / Received</label>
+      <input type="date" id="f_openedDate">
+    </div>
+
+    <div class="field">
+      <label>Remarks (optional)</label>
+      <input type="text" id="f_remarks" placeholder="e.g., stored at 2–8°C">
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveRecord()">Save Record</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = "mmc_qc_controls_v1";
+let records = [];
+let editingId = null;
+let sortKey = "expiryDate";
+let sortDir = 1;
+
+function load(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    records = raw ? JSON.parse(raw) : [];
+  }catch(e){ records = []; }
+}
+function persist(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+}
+
+function uid(){ return 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+function daysUntil(dateStr){
+  const today = new Date(); today.setHours(0,0,0,0);
+  const d = new Date(dateStr + "T00:00:00");
+  return Math.round((d - today) / 86400000);
+}
+
+function statusOf(dateStr){
+  const days = daysUntil(dateStr);
+  if(days < 0) return "expired";
+  if(days <= 30) return "soon";
+  return "valid";
+}
+
+function fmtDate(dateStr){
+  if(!dateStr) return "—";
+  const d = new Date(dateStr + "T00:00:00");
+  return d.toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'});
+}
+
+function openModal(record){
+  editingId = record ? record.id : null;
+  document.getElementById('modalTitle').textContent = record ? "Edit QC Record" : "Add QC Record";
+  document.getElementById('f_testName').value = record ? record.testName : "";
+  document.getElementById('f_type').value = record ? (record.type || "Control") : "Control";
+  document.getElementById('f_section').value = record ? record.section : "Clinical Chemistry";
+  document.getElementById('f_controlLevel').value = record ? record.controlLevel : "";
+  document.getElementById('f_analyzer').value = record ? record.analyzer : "";
+  document.getElementById('f_lotNumber').value = record ? record.lotNumber : "";
+  document.getElementById('f_openedDate').value = record ? (record.openedDate || "") : "";
+  document.getElementById('f_expiryDate').value = record ? record.expiryDate : "";
+  document.getElementById('f_remarks').value = record ? (record.remarks || "") : "";
+  updateLevelLabel();
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('f_testName').focus();
+}
+function updateLevelLabel(){
+  const t = document.getElementById('f_type').value;
+  const wrap = document.getElementById('f_controlLevelWrap');
+  if(t === "Calibrator"){
+    wrap.style.display = "none";
+    document.getElementById('f_controlLevel').value = "";
+  } else {
+    wrap.style.display = "block";
+  }
+}
+document.getElementById('f_type').addEventListener('change', updateLevelLabel);
+function closeModal(){
+  document.getElementById('overlay').classList.remove('open');
+}
+document.getElementById('overlay').addEventListener('click', (e)=>{
+  if(e.target.id === 'overlay') closeModal();
+});
+
+function saveRecord(){
+  const testName = document.getElementById('f_testName').value.trim();
+  const lotNumber = document.getElementById('f_lotNumber').value.trim();
+  const expiryDate = document.getElementById('f_expiryDate').value;
+
+  if(!testName || !lotNumber || !expiryDate){
+    alert("Please fill in Test Name, Lot Number, and Expiry Date.");
+    return;
+  }
+
+  const data = {
+    testName,
+    type: document.getElementById('f_type').value,
+    section: document.getElementById('f_section').value,
+    controlLevel: document.getElementById('f_controlLevel').value.trim(),
+    analyzer: document.getElementById('f_analyzer').value.trim(),
+    lotNumber,
+    openedDate: document.getElementById('f_openedDate').value,
+    expiryDate,
+    remarks: document.getElementById('f_remarks').value.trim()
+  };
+
+  if(editingId){
+    const idx = records.findIndex(r => r.id === editingId);
+    if(idx > -1) records[idx] = {...records[idx], ...data};
+  } else {
+    records.push({ id: uid(), ...data });
+  }
+
+  persist();
+  closeModal();
+  render();
+}
+
+function deleteRecord(id){
+  const rec = records.find(r=>r.id===id);
+  if(!rec) return;
+  if(confirm(`Delete control record for "${rec.testName}" (Lot ${rec.lotNumber})?`)){
+    records = records.filter(r => r.id !== id);
+    persist();
+    render();
+  }
+}
+
+function editRecord(id){
+  const rec = records.find(r=>r.id===id);
+  if(rec) openModal(rec);
+}
+
+function exportJSON(){
+  const blob = new Blob([JSON.stringify(records, null, 2)], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const stamp = new Date().toISOString().slice(0,10);
+  a.href = url;
+  a.download = `MMC_Pathology_QC_Backup_${stamp}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importJSON(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    try{
+      const imported = JSON.parse(e.target.result);
+      if(!Array.isArray(imported)) throw new Error("Invalid file");
+      const merge = confirm("Click OK to merge with existing records, or Cancel to replace all existing records.");
+      if(merge){
+        const existingIds = new Set(records.map(r=>r.id));
+        imported.forEach(r=>{
+          if(!r.id || existingIds.has(r.id)) r.id = uid();
+          records.push(r);
+        });
+      } else {
+        records = imported.map(r => ({...r, id: r.id || uid()}));
+      }
+      persist();
+      render();
+      alert(`Import complete. ${imported.length} record(s) processed.`);
+    }catch(err){
+      alert("Could not read this file. Please select a valid backup JSON exported from this dashboard.");
+    }
+    event.target.value = "";
+  };
+  reader.readAsText(file);
+}
+
+function currentFiltered(){
+  const q = document.getElementById('search').value.trim().toLowerCase();
+  const sec = document.getElementById('filterSection').value;
+  const type = document.getElementById('filterType').value;
+  const stat = document.getElementById('filterStatus').value;
+
+  let list = records.filter(r=>{
+    const matchesQ = !q || [r.testName, r.lotNumber, r.analyzer, r.controlLevel].join(" ").toLowerCase().includes(q);
+    const matchesSec = !sec || r.section === sec;
+    const matchesType = !type || (r.type || "Control") === type;
+    const matchesStat = !stat || statusOf(r.expiryDate) === stat;
+    return matchesQ && matchesSec && matchesType && matchesStat;
+  });
+
+  list.sort((a,b)=>{
+    let av, bv;
+    if(sortKey === "_status"){
+      av = daysUntil(a.expiryDate); bv = daysUntil(b.expiryDate);
+    } else {
+      av = (a[sortKey]||"").toString().toLowerCase();
+      bv = (b[sortKey]||"").toString().toLowerCase();
+    }
+    if(av < bv) return -1 * sortDir;
+    if(av > bv) return 1 * sortDir;
+    return 0;
+  });
+
+  return list;
+}
+
+function render(){
+  const list = currentFiltered();
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = "";
+
+  document.getElementById('emptyState').style.display = list.length ? "none" : "block";
+  document.getElementById('qcTable').style.display = list.length ? "block" : "none";
+
+  list.forEach(r=>{
+    const days = daysUntil(r.expiryDate);
+    const status = statusOf(r.expiryDate);
+    const statusLabel = status === "expired" ? "Expired" : status === "soon" ? "Expiring Soon" : "Valid";
+
+    // decay bar: assume a 365-day typical shelf horizon for visual scale, clamp 0-100
+    let pct;
+    if(days < 0) pct = 100;
+    else pct = Math.max(0, 100 - Math.min(100, (days/365)*100));
+    const fillColor = status === "expired" ? "var(--bad)" : status === "soon" ? "var(--warn)" : "var(--ok)";
+
+    const daysLabel = days < 0 ? `${Math.abs(days)} day${Math.abs(days)===1?"":"s"} overdue`
+                     : days === 0 ? "Expires today"
+                     : `${days} day${days===1?"":"s"} left`;
+
+    const row = document.createElement('div');
+    row.className = 'qc-row';
+    const typeVal = r.type || "Control";
+    row.innerHTML = `
+      <div class="col-test test-name">${escapeHtml(r.testName)}<span class="section-tag">${escapeHtml(r.section||"")}</span></div>
+      <div class="col-type"><span class="type-tag ${typeVal}">${typeVal}</span></div>
+      <div class="col-level">${escapeHtml(r.controlLevel||"—")}</div>
+      <div class="col-lot mono">${escapeHtml(r.lotNumber)}</div>
+      <div class="col-analyzer">${escapeHtml(r.analyzer||"—")}</div>
+      <div class="col-expiry mono">${fmtDate(r.expiryDate)}</div>
+      <div class="col-status status-cell">
+        <span class="badge ${status}"><span class="dot"></span>${statusLabel}</span>
+        <div class="decay"><div class="decay-fill" style="width:${pct}%; background:${fillColor};"></div></div>
+        <div class="decay-label">${daysLabel}</div>
+      </div>
+      <div class="col-actions">
+        <div class="row-actions">
+          <button class="icon-btn" onclick="editRecord('${r.id}')" title="Edit">Edit</button>
+          <button class="icon-btn danger" onclick="deleteRecord('${r.id}')" title="Delete">Delete</button>
+        </div>
+      </div>
+    `;
+    tbody.appendChild(row);
+  });
+
+  // stats
+  document.getElementById('statTotal').textContent = records.length;
+  document.getElementById('statValid').textContent = records.filter(r=>statusOf(r.expiryDate)==="valid").length;
+  document.getElementById('statSoon').textContent = records.filter(r=>statusOf(r.expiryDate)==="soon").length;
+  document.getElementById('statExpired').textContent = records.filter(r=>statusOf(r.expiryDate)==="expired").length;
+
+  // sort header indicator
+  document.querySelectorAll('.qc-head > div[data-key]').forEach(el=>{
+    el.classList.toggle('sorted', el.dataset.key === sortKey);
+  });
+}
+
+function escapeHtml(str){
+  return (str||"").toString()
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+document.querySelectorAll('.qc-head > div[data-key]').forEach(el=>{
+  el.addEventListener('click', ()=>{
+    const key = el.dataset.key;
+    if(sortKey === key){ sortDir *= -1; } else { sortKey = key; sortDir = 1; }
+    render();
+  });
+});
+
+document.getElementById('search').addEventListener('input', render);
+document.getElementById('filterSection').addEventListener('change', render);
+document.getElementById('filterType').addEventListener('change', render);
+document.getElementById('filterStatus').addEventListener('change', render);
+
+function tickClock(){
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.toLocaleDateString('en-GB',{weekday:'long', day:'2-digit', month:'long', year:'numeric'}) +
+    "  •  " + now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+}
+tickClock();
+setInterval(tickClock, 30000);
+
+// seed with a few example rows on first run so the layout isn't empty
+function seedIfEmpty(){
+  if(records.length) return;
+  const today = new Date();
+  const addDays = (n)=>{ const d = new Date(today); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); };
+  records = [
+    {id:uid(), testName:"Fasting Blood Glucose", type:"Control", section:"Clinical Chemistry", controlLevel:"Level 1 (Normal)", analyzer:"Abbott ARCHITECT i1000SR", lotNumber:"GLU-71834", openedDate: addDays(-20), expiryDate: addDays(75), remarks:"Store 2–8°C"},
+    {id:uid(), testName:"Fasting Blood Glucose", type:"Calibrator", section:"Clinical Chemistry", controlLevel:"Multi-Point Cal", analyzer:"Abbott ARCHITECT i1000SR", lotNumber:"GLC-40217", openedDate: addDays(-10), expiryDate: addDays(100), remarks:""},
+    {id:uid(), testName:"Complete Blood Count", type:"Control", section:"Hematology", controlLevel:"Level 2 (Abnormal)", analyzer:"Sysmex XN-1000", lotNumber:"CBC-55210", openedDate: addDays(-40), expiryDate: addDays(18), remarks:""},
+    {id:uid(), testName:"HBsAg", type:"Control", section:"Serology / Immunology", controlLevel:"Positive Control", analyzer:"Abbott ARCHITECT i1000SR", lotNumber:"HBS-90341", openedDate: addDays(-60), expiryDate: addDays(-5), remarks:"Replace immediately"}
+  ];
+  persist();
+}
+
+load();
+seedIfEmpty();
+render();
+</script>
+
+</body>
+</html>
